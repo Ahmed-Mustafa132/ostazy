@@ -25,7 +25,7 @@ workflows:
           npm run build
           npx cap sync ios
       - name: Set up code signing
-        script: xcode-project use-profiles --bundle-id com.osama.ostazy
+        script: xcode-project use-profiles
       - name: Build ipa for distribution
         script: |
           xcode-project build-ipa \
