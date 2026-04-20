@@ -1,0 +1,46 @@
+workflows:
+  ios-ostazy-auto:
+    name: Ostazy iOS Auto Flow
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    integrations:
+      # هنا استخدمنا الربط اللي شغال عندك "noourway"
+      app_store_connect: noourway
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.osama.ostazy
+      vars:
+        XCODE_PROJECT: "ios/App/App.xcodeproj"
+        XCODE_SCHEME: "App"
+        # الـ Apple ID الجديد بتاع تطبيق أستاذي
+        APP_ID: "6759056432"
+      node: latest
+      xcode: latest
+    scripts:
+      - name: Install dependencies
+        script: npm install
+      - name: Build web app and Sync
+        script: |
+          npm run build
+          npx cap sync ios
+      - name: Set up code signing
+        script: xcode-project use-profiles --bundle-id com.osama.ostazy
+      - name: Build ipa for distribution
+        script: |
+          xcode-project build-ipa \
+            --project "$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME"
+      - name: Publish to App Store Connect
+        script: |
+          # رفع النسخة فقط بدون تشغيل الـ Testflight أوتوماتيك لتجنب الرفض الإداري
+          app-store-connect publish \
+            --path $(find build/ios/ipa -name "*.ipa" | head -n 1) \
+            --apple-id "$APP_ID"
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      email:
+        recipients:
+          - osakr100@gmail.com
+          - ahmedmustafa0384@gmail.com
