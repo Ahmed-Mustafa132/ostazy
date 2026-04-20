@@ -23,7 +23,7 @@ export default function UserLogin() {
   // التحقق من حالة تسجيل الدخول
   React.useEffect(() => {
     const checkUser = async () => {
-      const { data: { user } } = await supabase.userLogin.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         navigate(createPageUrl("Home"));
       }
@@ -93,7 +93,7 @@ export default function UserLogin() {
 
     try {
       if (isSignUp) {
-        const { data, error } = await supabase.userLogin.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
           options: {
@@ -117,7 +117,7 @@ export default function UserLogin() {
           setIsSignUp(false);
         }
       } else {
-        const { data, error } = await supabase.userLogin.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email: formData.email,
           password: formData.password
         });
