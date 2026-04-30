@@ -21,15 +21,15 @@ workflows:
           npm install @capacitor/core@7.6.2 @capacitor/ios@7.6.2 @capacitor/cli@7.6.2 @capacitor/android@7.0.0 --save-exact
           npm install --legacy-peer-deps
 
-      - name: Build web app
-        script: npm run build
-
-        # إضافة الأمر هنا
       - name: Generate Assets
         script: npx @capacitor/assets generate --ios
 
+      - name: Build web app
+        script: npm run build
+
       - name: Reset & Sync Capacitor
         script: |
+          rm -rf ios
           export CAPACITOR_PROJECT_USE_SPM=false
           npx cap add ios
           npx cap sync ios
