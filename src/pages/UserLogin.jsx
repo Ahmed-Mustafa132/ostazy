@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/components/SupabaseClient";
 import { createPageUrl } from "@/utils";
@@ -6,62 +6,87 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GraduationCap, Loader2 } from 'lucide-react';
-import { useLanguage } from "@/context/LanguageContext"; // استيراد سياق اللغة
+import { useLanguage } from "@/context/LanguageContext";
+import { Capacitor } from '@capacitor/core';
+import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
+import { SignInWithApple } from '@capacitor-community/apple-sign-in';
 
 export default function UserLogin() {
   const navigate = useNavigate();
-  const { t, isRTL } = useLanguage(); // استخدام دالة الترجمة والتحقق من الاتجاه
+  const { t, isRTL } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-    fullName: ""
-  });
+  const [formData, setFormData] = useState({ email: "", password: "", fullName: "" });
   const [error, setError] = useState("");
 
   // التحقق من حالة تسجيل الدخول
-  React.useEffect(() => {
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      GoogleAuth.initialize({
+        clientId: '561362297890-pdn7p0hscm8vo1o91na4l4rro3p4sq5g.apps.googleusercontent.com', // استبدله بـ Web Client ID من Google Console
+        scopes: ['profile', 'email'],
+        grantOfflineAccess: true,
+      });
+    }
+  }, []);
+
+  // التحقق من حالة الجلسة
+  useEffect(() => {
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        navigate(createPageUrl("Home"));
-      }
+      if (user) navigate(createPageUrl("Home"));
     };
     checkUser();
   }, [navigate]);
 
   const handleGoogleLogin = async () => {
+    setLoading(true);
+    setError("");
+
     try {
-      setLoading(true);
-      setError("");
+      if (Capacitor.isNativePlatform()) {
+        // --- النمط الخاص بالموبايل (Native) ---
+        // ملاحظة: تأكد أنك تستخدم Android/iOS Client ID هنا
+        const googleUser = await GoogleAuth.signIn();
 
-      // الرابط اللي هيرجع عليه المستخدم بعد الدفع أو تسجيل الدخول في التطبيق
-      const isApp = window.location.protocol === 'http:' || window.location.protocol === 'file:';
-      const redirectTo = isApp
-        ? "com.osama.ostazy://login-callback"
-        : window.location.origin;
-
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectTo,
+        if (!googleUser.authentication.idToken) {
+          throw new Error("No ID Token received from Google");
         }
-      });
 
-      if (error) throw error;
+        // إرسال الـ Token لسوبابيس
+        const { data, error: sbError } = await supabase.auth.signInWithIdToken({
+          provider: 'google',
+          token: googleUser.authentication.idToken,
+        });
 
-      if (data?.url) {
-        // في الموبايل يفضل فتح الرابط مباشرة
-        window.location.href = data.url;
+        if (sbError) throw sbError;
+
+        // نجاح التسجيل في الموبايل
+        navigate(createPageUrl("Home"));
+        // reload ليس ضرورياً دائماً إذا قمت بتحديث الـ Auth State
+        window.location.reload();
+
+      } else {
+        // --- النمط الخاص بالويب (Web) ---
+        // هنا المتصفح سيتولى عملية الـ Redirect
+        const { error: oauthError } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: window.location.origin, // سيعود للمتصفح مباشرة
+          }
+        });
+        if (oauthError) throw oauthError;
       }
-    } catch (error) {
-      console.error(error);
-      setError(error.message || t("userLogin.google_error"));
+    } catch (err) {
+      console.error("Google Login Error:", err);
+      // تجنب إظهار خطأ "إلغاء المستخدم" كخطأ فعلي
+      if (err.message !== "user cancelled" && err !== "user cancelled") {
+        setError(err.message || t("userLogin.google_error"));
+      }
+    } finally {
       setLoading(false);
     }
   };
-
   const handleAppleLogin = async () => {
     try {
       setLoading(true);
@@ -90,44 +115,34 @@ export default function UserLogin() {
     e.preventDefault();
     setError("");
     setLoading(true);
-
     try {
       if (isSignUp) {
         const { data, error } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
-          options: {
-            data: {
-              full_name: formData.fullName,
-              role: 'user'
-            }
-          }
+          options: { data: { full_name: formData.fullName, role: 'user' } }
         });
         if (error) throw error;
-
         if (data?.user) {
           await supabase.from('user_profiles').upsert({
             id: data.user.id,
             email: formData.email,
             full_name: formData.fullName,
             role: 'user'
-          }, { onConflict: 'id' });
-
+          });
           alert(t("userLogin.signup_success"));
           setIsSignUp(false);
         }
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const { error } = await supabase.auth.signInWithPassword({
           email: formData.email,
           password: formData.password
         });
         if (error) throw error;
-
         navigate(createPageUrl("Home"));
         window.location.reload();
       }
     } catch (err) {
-      console.error(err);
       setError(err.message || t("userLogin.general_error"));
     } finally {
       setLoading(false);

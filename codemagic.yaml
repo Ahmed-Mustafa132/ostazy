@@ -1,46 +1,99 @@
+
 workflows:
   ios-ostazy-auto:
     name: Ostazy iOS Auto Flow
     max_build_duration: 120
     instance_type: mac_mini_m2
     integrations:
-      # هنا استخدمنا الربط اللي شغال عندك "noourway"
       app_store_connect: noourway
     environment:
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.osama.ostazy
+        bundle_identifier:  com.osama.ostazy
       vars:
-        XCODE_PROJECT: "ios/App/App.xcodeproj"
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
-        # الـ Apple ID الجديد بتاع تطبيق أستاذي
         APP_ID: "6759056432"
       node: latest
       xcode: latest
     scripts:
-      - name: Install dependencies
-        script: npm install
-      - name: Build web app and Sync
+      - name: Force Downgrade & Install
         script: |
-          npm run build
+          npm install @capacitor/core@7.6.2 @capacitor/ios@7.6.2 @capacitor/cli@7.6.2 @capacitor/android@7.0.0 --save-exact
+          npm install --legacy-peer-deps
+        
+      - name: Build web app
+        script: npm run build
+        
+      - name: Reset & Sync Capacitor
+        script: |
+          rm -rf ios
+          export CAPACITOR_PROJECT_USE_SPM=false
+          npx cap add ios
           npx cap sync ios
+          rm -f ios/App/Package.swift
+          
+      - name: Create Podfile and Install
+        script: |
+          cd ios/App
+          cat <<EOF > Podfile
+          platform :ios, '14.0'
+          use_frameworks!
+          target 'App' do
+            pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
+            pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
+            pod 'CapacitorCommunityAppleSignIn', :path => '../../node_modules/@capacitor-community/apple-sign-in'
+            pod 'CodetrixStudioCapacitorGoogleAuth', :path => '../../node_modules/@codetrix-studio/capacitor-google-auth/CodetrixStudioCapacitorGoogleAuth.podspec'
+          end
+          post_install do |installer|
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
+              end
+            end
+          end
+          EOF
+          pod install
+
+      - name: Build for Simulator (Appetize)
+        script: |
+          xcodebuild -workspace "$XCODE_WORKSPACE" \
+                     -scheme "$XCODE_SCHEME" \
+                     -configuration Debug \
+                     -sdk iphonesimulator \
+                     -derivedDataPath derived_data
+          
+          APP_PATH=$(find derived_data/Build/Products -name "*.app" | head -n 1)
+          zip -r appetize_bundle.zip "$APP_PATH"
+
       - name: Set up code signing
         script: xcode-project use-profiles
-      - name: Build ipa for distribution
+
+      - name: Increment Build Number
+        script: |
+          # سكريبت لزيادة رقم النسخة أوتوماتيكياً لحل مشكلة ENTITY_ERROR.ATTRIBUTE.INVALID.DUPLICATE
+          cd ios/App
+          agvtool new-version -all $PROJECT_BUILD_NUMBER
+
+      - name: Build IPA for App Store
         script: |
           xcode-project build-ipa \
-            --project "$XCODE_PROJECT" \
+            --workspace "$XCODE_WORKSPACE" \
             --scheme "$XCODE_SCHEME"
+            
       - name: Publish to App Store Connect
         script: |
-          # رفع النسخة فقط بدون تشغيل الـ Testflight أوتوماتيك لتجنب الرفض الإداري
-          app-store-connect publish \
-            --path $(find build/ios/ipa -name "*.ipa" | head -n 1) \
-            --apple-id "$APP_ID"
+          IPA_PATH=$(find build/ios/ipa -name "*.ipa" | head -n 1)
+          if [ -n "$IPA_PATH" ]; then
+            app-store-connect publish --path "$IPA_PATH" --apple-id "$APP_ID"
+          else
+            echo "IPA not found, skipping publish"
+            exit 1
+          fi
     artifacts:
+      - "*.zip"
       - build/ios/ipa/*.ipa
     publishing:
       email:
         recipients:
-          - osakr100@gmail.com
           - ahmedmustafa0384@gmail.com

@@ -134,7 +134,29 @@ export const supabase = {
         return { data: null, error };
       }
     },
+    signInWithIdToken: async ({ provider, token }) => {
+      try {
+        const response = await fetch(`${supabaseUrl}/auth/v1/verify`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': supabaseKey, // لا تنسَ إضافة الـ apikey
+          },
+          body: JSON.stringify({
+            type: 'id_token',
+            config: { provider: provider, id_token: token }
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw data;
 
+        // هام جداً: تخزين الجلسة
+        localStorage.setItem('sb-auth-token', JSON.stringify(data));
+        return { data: { session: data, user: data.user }, error: null };
+      } catch (error) {
+        return { data: null, error };
+      }
+    },
     signInWithPassword: async ({ email, password }) => {
       try {
         const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {

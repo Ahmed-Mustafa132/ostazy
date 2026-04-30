@@ -4,4 +4,5 @@
     <string name="title_activity_main">ostazy</string>
     <string name="package_name">com.osama.ostazy</string>
     <string name="custom_url_scheme">com.osama.ostazy</string>
+    <string name="server_client_id">561362297890-pdn7p0hscm8vo1o91na4l4rro3p4sq5g.apps.googleusercontent.com</string>
 </resources>
