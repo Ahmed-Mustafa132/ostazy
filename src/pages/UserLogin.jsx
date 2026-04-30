@@ -88,25 +88,55 @@ export default function UserLogin() {
     }
   };
   const handleAppleLogin = async () => {
-    try {
-      setLoading(true);
-      setError("");
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'apple',
-        options: {
-          redirectTo: window.location.origin,
-          scopes: 'name email',
-        }
-      });
-      if (error) throw error;
+    setLoading(true);
+    setError("");
 
-      if (data?.url) {
-        const targetWindow = window.top || window;
-        targetWindow.location.href = data.url;
+    try {
+      if (Capacitor.isNativePlatform()) {
+        // --- النمط الخاص بالموبايل (Native) ---
+        const result = await SignInWithApple.authorize({
+          scopes: ['name', 'email'],
+        });
+
+        // ده الـ Token اللي Apple بعتهولنا
+        const idToken = result.response.identityToken;
+
+        if (!idToken) {
+          throw new Error("No ID Token received from Apple");
+        }
+
+        // إرسال الـ Token لسوبابيس (باستخدام نفس الدالة اللي عملتها)
+        const { data, error: sbError } = await supabase.auth.signInWithIdToken({
+          provider: 'apple',
+          token: idToken,
+        });
+
+        if (sbError) throw sbError;
+
+        // نجاح التسجيل
+        navigate(createPageUrl("Home"));
+        window.location.reload();
+
+      } else {
+        // --- النمط الخاص بالويب (Web) ---
+        // الويب يفضل فيه الـ Redirect لأن Apple Sign In غالباً بيحتاج نافذة منفصلة
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'apple',
+          options: {
+            redirectTo: window.location.origin,
+            scopes: 'name email',
+          }
+        });
+        if (error) throw error;
+        if (data?.url) window.location.href = data.url;
       }
-    } catch (error) {
-      console.error(error);
-      setError(error.message || t("userLogin.apple_error"));
+    } catch (err) {
+      console.error("Apple Login Error:", err);
+      // تجاهل خطأ "إلغاء المستخدم"
+      if (err.message !== "user cancelled" && err.code !== "cancelled") {
+        setError(err.message || t("userLogin.apple_error"));
+      }
+    } finally {
       setLoading(false);
     }
   };
