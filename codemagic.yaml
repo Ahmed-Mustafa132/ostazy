@@ -27,7 +27,6 @@ workflows:
         
       - name: Reset & Sync Capacitor
         script: |
-          rm -rf ios
           export CAPACITOR_PROJECT_USE_SPM=false
           npx cap add ios
           npx cap sync ios
