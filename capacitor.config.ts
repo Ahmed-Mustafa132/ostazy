@@ -21,6 +21,12 @@ const config: CapacitorConfig = {
         "561362297890-pdn7p0hscm8vo1o91na4l4rro3p4sq5g.apps.googleusercontent.com",
       forceCodeForRefreshToken: true,
     },
+    Assets: {
+      inputs: {
+        icon: "assets/icon.png", // تأكد من وجود الصورة هنا
+        splash: "assets/icon.png", // تأكد من وجود صورة الـ Splash هنا
+      },
+    },
   },
 };
 
