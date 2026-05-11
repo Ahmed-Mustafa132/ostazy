@@ -1,6 +1,7 @@
+
 workflows:
-  ios-ostazy-auto:
-    name: Ostazy iOS Auto Flow
+  ios-alnoorway-auto:
+    name: AlNoorway iOS Full Build & Publish
     max_build_duration: 120
     instance_type: mac_mini_m2
     integrations:
@@ -8,9 +9,9 @@ workflows:
     environment:
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.osama.ostazy
+        bundle_identifier:  com.osama.ostazy
       vars:
-        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
         APP_ID: "6759056432"
       node: latest
@@ -21,67 +22,53 @@ workflows:
           npm install @capacitor/core@7.6.2 @capacitor/ios@7.6.2 @capacitor/cli@7.6.2 @capacitor/android@7.0.0 --save-exact
           npm install --legacy-peer-deps
 
-      - name: Generate Assets
-        script: npx @capacitor/assets generate --ios
-
       - name: Build web app
         script: npm run build
 
       - name: Reset & Sync Capacitor
         script: |
-          rm -rf ios
-          export CAPACITOR_PROJECT_USE_SPM=false
-          npx cap add ios
+          export CAPACITOR_PROJECT_USE_SPM=true
           npx cap sync ios
-          rm -f ios/App/Package.swift
+
       - name: Generate Assets
         script: npx @capacitor/assets generate --ios
-      - name: Create Podfile and Install
-        script: |
-          cd ios/App
-          cat <<EOF > Podfile
-          platform :ios, '14.0'
-          use_frameworks!
-          target 'App' do
-            pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
-            pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
-            pod 'CapacitorCommunityAppleSignIn', :path => '../../node_modules/@capacitor-community/apple-sign-in'
-            pod 'CodetrixStudioCapacitorGoogleAuth', :path => '../../node_modules/@codetrix-studio/capacitor-google-auth/CodetrixStudioCapacitorGoogleAuth.podspec'
-          end
-          post_install do |installer|
-            installer.pods_project.targets.each do |target|
-              target.build_configurations.each do |config|
-                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
-              end
-            end
-          end
-          EOF
-          pod install
 
       - name: Build for Simulator (Appetize)
         script: |
-          xcodebuild -workspace "$XCODE_WORKSPACE" \
-                     -scheme "$XCODE_SCHEME" \
-                     -configuration Debug \
-                     -sdk iphonesimulator \
-                     -derivedDataPath derived_data
+          # بناء نسخة مخصصة للمحاكي (Simulator)
+          xcodebuild build \
+            -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -derivedDataPath derived_data \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
 
-          APP_PATH=$(find derived_data/Build/Products -name "*.app" | head -n 1)
-          zip -r appetize_bundle.zip "$APP_PATH"
+          # استخراج ملف الـ .app وضغطه بطريقة تضمن وجوده في الـ Artifacts
+          mkdir -p appetize_build
+          APP_PATH=$(find derived_data/Build/Products -name "*.app" -type d | head -n 1)
+          if [ -n "$APP_PATH" ]; then
+            echo "Found app at: $APP_PATH"
+            # ضغط المجلد مباشرة في المكان الرئيسي
+            zip -r appetize_bundle.zip "$APP_PATH"
+          else
+            echo "Error: .app file not found!"
+            exit 1
+          fi
 
       - name: Set up code signing
         script: xcode-project use-profiles
 
       - name: Increment Build Number
         script: |
-          # سكريبت لزيادة رقم النسخة أوتوماتيكياً لحل مشكلة ENTITY_ERROR.ATTRIBUTE.INVALID.DUPLICATE
           cd ios/App
           agvtool new-version -all $PROJECT_BUILD_NUMBER
 
       - name: Build IPA for App Store
         script: |
           xcode-project build-ipa \
-            --workspace "$XCODE_WORKSPACE" \
+            --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME"
 
       - name: Publish to App Store Connect
@@ -93,9 +80,10 @@ workflows:
             echo "IPA not found, skipping publish"
             exit 1
           fi
+
     artifacts:
-      - "*.zip"
       - build/ios/ipa/*.ipa
+      - "*.zip" # هذا سيجلب أي ملف zip يتم إنشاؤه في المجلد الرئيسي
     publishing:
       email:
         recipients:
