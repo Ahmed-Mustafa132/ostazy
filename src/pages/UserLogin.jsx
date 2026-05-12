@@ -24,6 +24,7 @@ export default function UserLogin() {
     if (Capacitor.isNativePlatform()) {
       GoogleAuth.initialize({
         clientId: '561362297890-pdn7p0hscm8vo1o91na4l4rro3p4sq5g.apps.googleusercontent.com', // استبدله بـ Web Client ID من Google Console
+        iosClientId: 'com.googleusercontent.apps.561362297890-pdn7p0hscm8vo1o91na4l4rro3p4sq5g',
         scopes: ['profile', 'email'],
         grantOfflineAccess: true,
       });
