@@ -56,6 +56,9 @@ workflows:
             exit 1
           fi
 
+      - name: Set up code signing
+        script: xcode-project use-profiles
+
       - name: Increment Build Number
         script: |
           cd ios/App
@@ -63,46 +66,9 @@ workflows:
 
       - name: Build IPA for App Store
         script: |
-          cat > exportOptions.plist <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>app-store</string>
-            <key>teamID</key>
-            <string>AU27C9M3JX</string>
-            <key>uploadSymbols</key>
-            <true/>
-            <key>compileBitcode</key>
-            <true/>
-          </dict>
-          </plist>
-          EOF
-
-          xcodebuild clean \
-            -project "$XCODE_PROJECT" \
-            -scheme "$XCODE_SCHEME" \
-            -configuration Release \
-            -derivedDataPath derived_data
-
-          xcodebuild archive \
-            -project "$XCODE_PROJECT" \
-            -scheme "$XCODE_SCHEME" \
-            -configuration Release \
-            -archivePath build/ios/xcarchive/App.xcarchive \
-            CODE_SIGN_STYLE=Automatic \
-            DEVELOPMENT_TEAM=AU27C9M3JX \
-            PROVISIONING_PROFILE_SPECIFIER="" \
-            PROVISIONING_PROFILE="" \
-            CODE_SIGNING_ALLOWED=YES \
-            CODE_SIGNING_REQUIRED=YES \
-            -allowProvisioningUpdates
-
-          xcodebuild -exportArchive \
-            -archivePath build/ios/xcarchive/App.xcarchive \
-            -exportPath build/ios/ipa \
-            -exportOptionsPlist exportOptions.plist
+          xcode-project build-ipa \
+            --project "$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME"
 
       - name: Publish to App Store Connect
         script: |
