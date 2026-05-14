@@ -56,9 +56,6 @@ workflows:
             exit 1
           fi
 
-      - name: Set up code signing
-        script: xcode-project use-profiles
-
       - name: Increment Build Number
         script: |
           cd ios/App
@@ -96,6 +93,10 @@ workflows:
             -archivePath build/ios/xcarchive/App.xcarchive \
             CODE_SIGN_STYLE=Automatic \
             DEVELOPMENT_TEAM=AU27C9M3JX \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            PROVISIONING_PROFILE="" \
+            CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGNING_REQUIRED=YES \
             -allowProvisioningUpdates
 
           xcodebuild -exportArchive \
