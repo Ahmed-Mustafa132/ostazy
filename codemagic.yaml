@@ -1,4 +1,3 @@
-
 workflows:
   ios-alnoorway-auto:
     name: AlNoorway iOS Full Build & Publish
@@ -9,7 +8,7 @@ workflows:
     environment:
       ios_signing:
         distribution_type: app_store
-        bundle_identifier:  com.osama.ostazy
+        bundle_identifier: com.osama.ostazy
       vars:
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
@@ -67,9 +66,42 @@ workflows:
 
       - name: Build IPA for App Store
         script: |
-          xcode-project build-ipa \
-            --project "$XCODE_PROJECT" \
-            --scheme "$XCODE_SCHEME"
+          cat > exportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>teamID</key>
+            <string>AU27C9M3JX</string>
+            <key>uploadSymbols</key>
+            <true/>
+            <key>compileBitcode</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+
+          xcodebuild clean \
+            -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            -derivedDataPath derived_data
+
+          xcodebuild archive \
+            -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            -archivePath build/ios/xcarchive/App.xcarchive \
+            CODE_SIGN_STYLE=Automatic \
+            DEVELOPMENT_TEAM=AU27C9M3JX \
+            -allowProvisioningUpdates
+
+          xcodebuild -exportArchive \
+            -archivePath build/ios/xcarchive/App.xcarchive \
+            -exportPath build/ios/ipa \
+            -exportOptionsPlist exportOptions.plist
 
       - name: Publish to App Store Connect
         script: |
